@@ -140,18 +140,28 @@ const getOrderById = async (req, res) => {
     const query =
       role === 'admin'
         ? `SELECT o.*, p.name AS product_name, cu.name AS customer_name, cu.phone AS customer_phone,
-                  du.name AS driver_name, du.phone AS driver_phone
+                  du.name AS driver_name, du.phone AS driver_phone,
+                  d.rating AS driver_rating, d.vehicle_info AS driver_vehicle_info,
+                  d.vehicle_plate AS driver_vehicle_plate,
+                  pod.photo_url AS pod_photo_url, pod.signature_url AS pod_signature_url,
+                  pod.empty_collected AS pod_empty_collected, pod.notes AS pod_notes
            FROM orders AS o
            LEFT JOIN products AS p ON o.product_id = p.id
            LEFT JOIN users AS cu ON o.user_id = cu.id
            LEFT JOIN drivers AS d ON o.driver_id = d.id
            LEFT JOIN users AS du ON d.user_id = du.id
+           LEFT JOIN proof_of_delivery AS pod ON pod.order_id = o.id
            WHERE o.id = $1`
-        : `SELECT o.*, p.name AS product_name, du.name AS driver_name, du.phone AS driver_phone
+        : `SELECT o.*, p.name AS product_name, du.name AS driver_name, du.phone AS driver_phone,
+                  d.rating AS driver_rating, d.vehicle_info AS driver_vehicle_info,
+                  d.vehicle_plate AS driver_vehicle_plate,
+                  pod.photo_url AS pod_photo_url, pod.signature_url AS pod_signature_url,
+                  pod.empty_collected AS pod_empty_collected, pod.notes AS pod_notes
            FROM orders AS o
            LEFT JOIN products AS p ON o.product_id = p.id
            LEFT JOIN drivers AS d ON o.driver_id = d.id
            LEFT JOIN users AS du ON d.user_id = du.id
+           LEFT JOIN proof_of_delivery AS pod ON pod.order_id = o.id
            WHERE o.id = $1 AND o.user_id = $2`;
 
     const params = role === 'admin' ? [id] : [id, user_id];
@@ -219,7 +229,9 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-// POST /api/orders/:id/rate — Rate a completed delivery
+// POST /api/orders/:id/rate — Rate an order the resident has confirmed as received.
+// Gated on status = 'COMPLETED' (set via POST /api/quality/orders/:id/verify, the resident's
+// "confirm receipt" action) rather than 'DELIVERED' alone, and rejects a second rating.
 const rateOrder = async (req, res) => {
   try {
     const { id } = req.params;
@@ -232,15 +244,28 @@ const rateOrder = async (req, res) => {
 
     const result = await pool.query(
       `UPDATE orders SET rating = $1
-       WHERE id = $2 AND user_id = $3 AND status IN ('DELIVERED','COMPLETED')
+       WHERE id = $2 AND user_id = $3 AND status = 'COMPLETED' AND rating IS NULL
        RETURNING *`,
       [rating, id, user_id]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: 'NOT_FOUND',
-        message: 'Order not found, does not belong to you, or is not yet delivered',
+      const check = await pool.query(
+        `SELECT status, rating FROM orders WHERE id = $1 AND user_id = $2`,
+        [id, user_id]
+      );
+      if (check.rows.length === 0) {
+        return res.status(404).json({
+          error: 'NOT_FOUND',
+          message: 'Order not found or does not belong to you',
+        });
+      }
+      if (check.rows[0].rating != null) {
+        return res.status(409).json({ error: 'ALREADY_RATED', message: 'This order has already been rated' });
+      }
+      return res.status(400).json({
+        error: 'NOT_ELIGIBLE',
+        message: 'Confirm you have received this order before rating it',
       });
     }
     return res.status(200).json({ message: 'Rating saved. Thank you!', order: result.rows[0] });
@@ -326,12 +351,16 @@ const getAllOrdersAdmin = async (req, res) => {
               cu.name AS customer_name,
               cu.phone AS customer_phone,
               du.name AS driver_name,
-              du.phone AS driver_phone
+              du.phone AS driver_phone,
+              pod.photo_url AS pod_photo_url,
+              pod.signature_url AS pod_signature_url,
+              pod.empty_collected AS pod_empty_collected
        FROM orders o
        LEFT JOIN products p ON o.product_id = p.id
        INNER JOIN users cu ON o.user_id = cu.id
        LEFT JOIN drivers d ON o.driver_id = d.id
        LEFT JOIN users du ON d.user_id = du.id
+       LEFT JOIN proof_of_delivery pod ON pod.order_id = o.id
        ORDER BY o.created_at DESC`
     );
 

@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, ShoppingCart, Truck, Users, Waves } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Motorbike, Users, Waves } from 'lucide-react';
 
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin'] },
   { to: '/orders',    icon: ShoppingCart,    label: 'Orders',    roles: ['admin', 'driver'] },
-  { to: '/drivers',   icon: Truck,           label: 'Drivers',   roles: ['admin'] },
+  { to: '/drivers',   icon: Motorbike,       label: 'Drivers',   roles: ['admin'] },
   { to: '/users',     icon: Users,           label: 'Users',     roles: ['admin'] },
 ];
 

@@ -5,16 +5,25 @@ import '../theme/app_theme.dart';
 import 'order_confirmation_screen.dart';
 
 class OrderScreen extends StatefulWidget {
-  const OrderScreen({super.key});
+  // Optional prefill for "Reorder" flows — reproduces a previous order's selection.
+  final int? initialVolumeLiters;
+  final int? initialQuantity;
+  final bool? initialReturnEmpty;
+  const OrderScreen({
+    super.key,
+    this.initialVolumeLiters,
+    this.initialQuantity,
+    this.initialReturnEmpty,
+  });
   @override
   State<OrderScreen> createState() => _OrderScreenState();
 }
 
 class _OrderScreenState extends State<OrderScreen> {
   int _step = 1;
-  int _volumeLiters = 20; // 10 or 20
-  int _qty = 2;
-  bool _returnEmpty = true;
+  late int _volumeLiters; // 10 or 20
+  late int _qty;
+  late bool _returnEmpty;
   String _timing = 'asap'; // asap | schedule
   String _payment = 'mpesa'; // mpesa | card | cash
   bool _placing = false;
@@ -28,6 +37,14 @@ class _OrderScreenState extends State<OrderScreen> {
   @override
   void initState() {
     super.initState();
+    // This screen only prices 10L/20L jerricans (see _unitPrice) — clamp any other
+    // prefilled volume (e.g. from a bulk-tank order) to the 20L default rather than
+    // silently mispricing it.
+    _volumeLiters = widget.initialVolumeLiters == 10 ? 10 : 20;
+    _qty = (widget.initialQuantity != null && widget.initialQuantity! > 0)
+        ? widget.initialQuantity!
+        : 2;
+    _returnEmpty = widget.initialReturnEmpty ?? true;
     final user = ApiService.getUser();
     final savedAddress = user?['delivery_address'] as String? ?? '';
     _addressCtrl = TextEditingController(text: savedAddress);

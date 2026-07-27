@@ -129,7 +129,7 @@ const sendWelcomeEmail = async ({ name, email }) => {
                 <p style="margin:0 0 10px; color:#1E293B; font-size:13px;">✅ Monitor your water tank level in real time</p>
                 <p style="margin:0 0 10px; color:#1E293B; font-size:13px;">🔮 Get predictions on when your tank will run out</p>
                 <p style="margin:0 0 10px; color:#1E293B; font-size:13px;">🔍 Detect leaks automatically at night</p>
-                <p style="margin:0; color:#1E293B; font-size:13px;">🚚 Order water with M-Pesa payment</p>
+                <p style="margin:0; color:#1E293B; font-size:13px;">🏍️ Order water with M-Pesa payment</p>
               </div>
 
               <p style="margin:0; color:#64748B; font-size:14px; line-height:1.6;">

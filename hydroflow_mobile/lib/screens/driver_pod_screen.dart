@@ -1,4 +1,7 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:signature/signature.dart';
 import '../services/api_service.dart';
 
 class DriverPodScreen extends StatefulWidget {
@@ -13,14 +16,59 @@ class _DriverPodScreenState extends State<DriverPodScreen> {
   int _empties = 0;
   bool _submitting = false;
   bool _done = false;
+  bool _capturing = false;
+
+  Uint8List? _photoBytes;
+  final SignatureController _signatureController = SignatureController(
+    penStrokeWidth: 3,
+    penColor: const Color(0xFF1A1A2E),
+    exportBackgroundColor: Colors.white,
+  );
+
+  @override
+  void dispose() {
+    _signatureController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _capturePhoto() async {
+    if (_capturing) return;
+    setState(() => _capturing = true);
+    try {
+      final file = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+        maxWidth: 1600,
+      );
+      if (file != null) {
+        final bytes = await file.readAsBytes();
+        if (mounted) setState(() => _photoBytes = bytes);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not open camera'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _capturing = false);
+    }
+  }
 
   Future<void> _complete() async {
     if (_submitting) return;
     setState(() => _submitting = true);
-    // Submit proof — backend marks order DELIVERED automatically
+    final signatureBytes = _signatureController.isNotEmpty
+        ? await _signatureController.toPngBytes()
+        : null;
+    // Submit proof — backend uploads any captured photo/signature to Cloudinary
+    // and marks the order DELIVERED automatically.
     final proofRes = await ApiService.submitProof(
       widget.orderId,
       emptyCollected: _empties,
+      photoBytes: _photoBytes,
+      signatureBytes: signatureBytes,
     );
     if (!mounted) return;
     if (proofRes['success'] == true) {
@@ -35,6 +83,164 @@ class _DriverPodScreenState extends State<DriverPodScreen> {
         setState(() => _submitting = false);
       }
     }
+  }
+
+  Widget _buildPhotoCapture() {
+    if (_photoBytes == null) {
+      return GestureDetector(
+        onTap: _capturePhoto,
+        child: Container(
+          height: 220,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF4F6F8),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFe3e8ee), width: 1.5),
+          ),
+          child: Center(
+            child: _capturing
+                ? const CircularProgressIndicator(
+                    color: Color(0xFF0077B6), strokeWidth: 2)
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 56, height: 56,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border:
+                              Border.all(color: const Color(0xFFe3e8ee)),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.camera_alt_rounded,
+                              color: Color(0xFF0077B6), size: 26),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Tap to take a photo',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Photo of delivered items',
+                        style:
+                            TextStyle(fontSize: 12, color: Color(0xFF9aa6b2)),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: SizedBox(
+        height: 220,
+        width: double.infinity,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              color: Colors.black12,
+              child: Image.memory(_photoBytes!, fit: BoxFit.cover),
+            ),
+            Positioned(
+              top: 10, right: 10,
+              child: GestureDetector(
+                onTap: _capturePhoto,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh_rounded,
+                          size: 14, color: Colors.white),
+                      SizedBox(width: 5),
+                      Text('Retake',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSignatureCapture() {
+    return Container(
+      height: 220,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFe3e8ee), width: 1.5),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: Stack(
+        children: [
+          Signature(
+            controller: _signatureController,
+            height: 220,
+            backgroundColor: Colors.white,
+          ),
+          IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _signatureController,
+              builder: (_, __) {
+                if (_signatureController.isNotEmpty) return const SizedBox.shrink();
+                return const Center(
+                  child: Text(
+                    'Sign above',
+                    style: TextStyle(fontSize: 13, color: Color(0xFF9aa6b2)),
+                  ),
+                );
+              },
+            ),
+          ),
+          Positioned(
+            top: 10, right: 10,
+            child: AnimatedBuilder(
+              animation: _signatureController,
+              builder: (_, __) {
+                if (_signatureController.isEmpty) return const SizedBox.shrink();
+                return GestureDetector(
+                  onTap: () => _signatureController.clear(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4F6F8),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFe3e8ee)),
+                    ),
+                    child: const Text('Clear',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF6b7785))),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -114,64 +320,7 @@ class _DriverPodScreenState extends State<DriverPodScreen> {
                     const SizedBox(height: 16),
 
                     // Capture area
-                    GestureDetector(
-                      onTap: () {},
-                      child: Container(
-                        height: 220,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF4F6F8),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: const Color(0xFFe3e8ee),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 56, height: 56,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                    color: const Color(0xFFe3e8ee)),
-                              ),
-                              child: Center(
-                                child: Icon(
-                                  _mode == 0
-                                      ? Icons.camera_alt_rounded
-                                      : Icons.draw_rounded,
-                                  color: const Color(0xFF0077B6),
-                                  size: 26,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              _mode == 0
-                                  ? 'Tap to take a photo'
-                                  : 'Tap to sign',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF1A1A2E),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _mode == 0
-                                  ? 'Photo of delivered items'
-                                  : 'Customer signature',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF9aa6b2),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    _mode == 0 ? _buildPhotoCapture() : _buildSignatureCapture(),
                     const SizedBox(height: 20),
 
                     // Empties counter

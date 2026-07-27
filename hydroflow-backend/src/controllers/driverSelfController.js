@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const { getIo } = require('../config/socket');
+const { uploadBuffer } = require('../config/cloudinary');
 
 const emitStatus = (driverId, status) => {
   const io = getIo();
@@ -154,10 +155,13 @@ const updateDeliveryStatus = async (req, res) => {
 };
 
 // POST /api/driver/deliveries/:id/proof
+// Accepts multipart/form-data: optional `photo` and `signature` files, plus empty_collected/notes fields.
+// Files are uploaded to Cloudinary; a photo_url/signature_url string in the body is still honored as a fallback.
 const submitProof = async (req, res) => {
   const client = await pool.connect();
   try {
-    const { photo_url, signature_url, empty_collected, notes } = req.body;
+    const { empty_collected, notes } = req.body;
+    let { photo_url, signature_url } = req.body;
 
     const driver = await getOrCreateDriver(client, req.user.id);
     if (!driver) return res.status(404).json({ error: 'DRIVER_NOT_FOUND', message: 'Driver profile not found' });
@@ -169,6 +173,22 @@ const submitProof = async (req, res) => {
     );
     if (orderCheck.rows.length === 0) {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Delivery not found or not assigned to you' });
+    }
+
+    // Upload any captured files to Cloudinary before opening the transaction (keeps the
+    // slow network call outside the DB transaction window).
+    const photoFile = req.files?.photo?.[0];
+    const signatureFile = req.files?.signature?.[0];
+    try {
+      if (photoFile) {
+        photo_url = await uploadBuffer(photoFile.buffer, 'hydroflow/proof_of_delivery/photos');
+      }
+      if (signatureFile) {
+        signature_url = await uploadBuffer(signatureFile.buffer, 'hydroflow/proof_of_delivery/signatures');
+      }
+    } catch (uploadErr) {
+      console.error('Cloudinary upload error:', uploadErr.message);
+      return res.status(502).json({ error: 'UPLOAD_FAILED', message: 'Could not upload proof image. Please try again.' });
     }
 
     await client.query('BEGIN');
@@ -305,19 +325,19 @@ const getEarnings = async (req, res) => {
 
     const earningsResult = await client.query(
       `SELECT
-         COALESCE(SUM(amount_ksh) FILTER (
+         COALESCE(SUM(delivery_fee) FILTER (
            WHERE DATE(completed_at) = CURRENT_DATE
              AND status IN ('DELIVERED','COMPLETED')
          ), 0)::FLOAT AS today,
-         COALESCE(SUM(amount_ksh) FILTER (
+         COALESCE(SUM(delivery_fee) FILTER (
            WHERE completed_at >= DATE_TRUNC('week', NOW())
              AND status IN ('DELIVERED','COMPLETED')
          ), 0)::FLOAT AS this_week,
-         COALESCE(SUM(amount_ksh) FILTER (
+         COALESCE(SUM(delivery_fee) FILTER (
            WHERE completed_at >= DATE_TRUNC('month', NOW())
              AND status IN ('DELIVERED','COMPLETED')
          ), 0)::FLOAT AS this_month,
-         COALESCE(SUM(amount_ksh) FILTER (
+         COALESCE(SUM(delivery_fee) FILTER (
            WHERE status IN ('DELIVERED','COMPLETED')
          ), 0)::FLOAT AS all_time,
          COUNT(*) FILTER (
@@ -334,7 +354,7 @@ const getEarnings = async (req, res) => {
 
     // Last 14 completed deliveries for the breakdown list
     const breakdownResult = await client.query(
-      `SELECT o.id, o.amount_ksh, o.completed_at, o.created_at, o.volume_liters,
+      `SELECT o.id, o.delivery_fee, o.completed_at, o.created_at, o.volume_liters,
               o.quantity, o.delivery_address, cu.name AS customer_name
        FROM orders o
        INNER JOIN users cu ON o.user_id = cu.id
@@ -348,7 +368,7 @@ const getEarnings = async (req, res) => {
     const dailyResult = await client.query(
       `SELECT
          DATE(completed_at)::TEXT AS day,
-         SUM(amount_ksh)::FLOAT   AS earnings,
+         SUM(delivery_fee)::FLOAT AS earnings,
          COUNT(*)::INT            AS count
        FROM orders
        WHERE driver_id = $1

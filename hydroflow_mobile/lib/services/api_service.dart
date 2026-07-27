@@ -3,8 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/constants.dart';
+
 class ApiService {
-  static const String baseUrl = 'http://192.168.0.105:3000/api';
+  static const String baseUrl = AppConstants.baseUrl;
 
   static String? _token;
   static Map<String, dynamic>? _user;
@@ -194,6 +196,21 @@ class ApiService {
       final data = jsonDecode(res.body);
       if (res.statusCode == 200) return {'success': true};
       return {'success': false, 'message': data['message'] ?? 'Rating failed'};
+    } catch (e) {
+      return {'success': false, 'message': 'Cannot connect to server.'};
+    }
+  }
+
+  // Resident confirms a DELIVERED order was received — required before it can be rated.
+  static Future<Map<String, dynamic>> confirmDelivery(String orderId) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/quality/orders/$orderId/verify'),
+        headers: _headers,
+      );
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200) return {'success': true, 'order': data['order']};
+      return {'success': false, 'message': data['message'] ?? 'Could not confirm delivery'};
     } catch (e) {
       return {'success': false, 'message': 'Cannot connect to server.'};
     }
@@ -484,22 +501,32 @@ class ApiService {
     }
   }
 
+  // Submits proof of delivery. photoBytes/signatureBytes (if provided) are uploaded to
+  // Cloudinary server-side and the resulting URLs are stored against the order.
   static Future<Map<String, dynamic>> submitProof(
     String orderId, {
     int emptyCollected = 0,
     String? notes,
-    String? photoUrl,
+    Uint8List? photoBytes,
+    Uint8List? signatureBytes,
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/driver/deliveries/$orderId/proof'),
-        headers: _headers,
-        body: jsonEncode({
-          'empty_collected': emptyCollected,
-          if (notes != null) 'notes': notes,
-          if (photoUrl != null) 'photo_url': photoUrl,
-        }),
-      );
+      final req = http.MultipartRequest(
+          'POST', Uri.parse('$baseUrl/driver/deliveries/$orderId/proof'));
+      if (_token != null) req.headers['Authorization'] = 'Bearer $_token';
+      req.fields['empty_collected'] = emptyCollected.toString();
+      if (notes != null) req.fields['notes'] = notes;
+      if (photoBytes != null) {
+        req.files.add(http.MultipartFile.fromBytes('photo', photoBytes,
+            filename: 'proof_photo.jpg'));
+      }
+      if (signatureBytes != null) {
+        req.files.add(http.MultipartFile.fromBytes(
+            'signature', signatureBytes,
+            filename: 'signature.png'));
+      }
+      final streamed = await req.send();
+      final res = await http.Response.fromStream(streamed);
       if (res.statusCode == 401) { await _handleUnauthorized(); return {'success': false, 'unauthorized': true}; }
       final data = jsonDecode(res.body);
       if (res.statusCode == 201) return {'success': true, 'proof': data['proof']};

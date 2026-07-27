@@ -320,7 +320,7 @@ class _DriverDeliveryDetailScreenState
             ],
           ),
           child: const Center(
-            child: Icon(Icons.local_shipping_rounded,
+            child: Icon(Icons.two_wheeler_rounded,
                 color: Colors.white, size: 20),
           ),
         ),
@@ -857,7 +857,7 @@ class _DriverDeliveryDetailScreenState
                                 children: [
                                   Icon(
                                     _status == 'ASSIGNED'
-                                        ? Icons.local_shipping_rounded
+                                        ? Icons.two_wheeler_rounded
                                         : Icons.camera_alt_rounded,
                                     color: Colors.white, size: 20,
                                   ),

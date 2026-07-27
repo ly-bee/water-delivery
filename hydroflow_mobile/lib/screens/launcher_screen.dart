@@ -171,7 +171,7 @@ class _LauncherScreenState extends State<LauncherScreen>
                     const SizedBox(height: 13),
                     _RoleCard(
                       onTap: () => _selectRole(context, 'driver'),
-                      iconWidget: const Icon(Icons.local_shipping_rounded,
+                      iconWidget: const Icon(Icons.two_wheeler_rounded,
                           color: Color(0xFF2DC653), size: 23),
                       iconBg: const Color(0xFFE9F8EE),
                       title: 'Driver',

@@ -321,7 +321,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
             ],
           ),
           child: const Center(
-            child: Icon(Icons.local_shipping_rounded,
+            child: Icon(Icons.two_wheeler_rounded,
                 color: Colors.white, size: 22),
           ),
         ),

@@ -236,6 +236,25 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // Most recently placed order (list is already sorted newest-first by the backend).
+  Map<String, dynamic>? get _lastOrder =>
+      _recentOrders.isNotEmpty ? _recentOrders.first : null;
+
+  String _relativeTime(String? isoDate) {
+    if (isoDate == null) return 'Recently';
+    try {
+      final dt = DateTime.parse(isoDate).toLocal();
+      final diff = DateTime.now().difference(dt).inDays;
+      if (diff <= 0) return 'today';
+      if (diff == 1) return 'yesterday';
+      if (diff < 7) return '$diff days ago';
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return 'on ${dt.day} ${months[dt.month - 1]}';
+    } catch (_) {
+      return 'Recently';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = Aq.of(context);
@@ -392,8 +411,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Stack(
                         children: [
                           Positioned(
-                            right: -10, bottom: -18,
-                            child: _JerricanDecoration(),
+                            right: -6, bottom: -14,
+                            child: _WaterContainerImage(),
                           ),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -412,7 +431,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         size: 13, color: Colors.white),
                                     SizedBox(width: 6),
                                     Text(
-                                      'Fastest in Kilimani',
+                                      'Fastest in Around Daystar',
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
@@ -490,103 +509,112 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // Quick reorder
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Quick reorder',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: p.textPrimary,
+                  // Quick reorder — reflects the resident's actual last order
+                  if (_lastOrder != null) ...[
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Quick reorder',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: p.textPrimary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 9),
-                      Container(
-                        padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
-                          color: p.bgSurface,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: p.border),
-                          boxShadow: isDark ? null : const [
-                            BoxShadow(
-                              color: Color(0x08101828),
-                              blurRadius: 3,
-                              offset: Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 46, height: 46,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0077B6).withValues(alpha: isDark ? 0.15 : 0.1),
-                                borderRadius: BorderRadius.circular(13),
+                        const SizedBox(height: 9),
+                        Container(
+                          padding: const EdgeInsets.all(15),
+                          decoration: BoxDecoration(
+                            color: p.bgSurface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: p.border),
+                            boxShadow: isDark ? null : const [
+                              BoxShadow(
+                                color: Color(0x08101828),
+                                blurRadius: 3,
+                                offset: Offset(0, 1),
                               ),
-                              child: const Center(
-                                child: Icon(Icons.water_drop_rounded,
-                                    color: Color(0xFF0077B6), size: 23),
-                              ),
-                            ),
-                            const SizedBox(width: 13),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '2 × 20L Refill',
-                                    style: TextStyle(
-                                      fontSize: 14.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: p.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 1),
-                                  Text(
-                                    'Last ordered 3 days ago · KSh 260',
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      color: p.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => const OrderScreen()),
-                              ),
-                              child: Container(
-                                height: 40,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 46, height: 46,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF0077B6).withValues(alpha: isDark ? 0.18 : 0.1),
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: const Color(0xFF0077B6).withValues(alpha: isDark ? 0.15 : 0.1),
+                                  borderRadius: BorderRadius.circular(13),
                                 ),
                                 child: const Center(
-                                  child: Text(
-                                    'Reorder',
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF0077B6),
+                                  child: Icon(Icons.water_drop_rounded,
+                                      color: Color(0xFF0077B6), size: 23),
+                                ),
+                              ),
+                              const SizedBox(width: 13),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${_lastOrder!['quantity'] ?? 1} × ${_lastOrder!['volume_liters'] ?? 20}L Refill',
+                                      style: TextStyle(
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: p.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      'Last ordered ${_relativeTime(_lastOrder!['created_at']?.toString())} · KSh ${_lastOrder!['amount_ksh'] ?? '-'}',
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        color: p.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => OrderScreen(
+                                      initialVolumeLiters: int.tryParse(
+                                          _lastOrder!['volume_liters']?.toString() ?? ''),
+                                      initialQuantity: int.tryParse(
+                                          _lastOrder!['quantity']?.toString() ?? ''),
+                                      initialReturnEmpty:
+                                          _lastOrder!['return_empties'] == true,
+                                    ),
+                                  ),
+                                ),
+                                child: Container(
+                                  height: 40,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0077B6).withValues(alpha: isDark ? 0.18 : 0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Center(
+                                    child: Text(
+                                      'Reorder',
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0077B6),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // Recent orders
                   Column(
@@ -777,118 +805,35 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _JerricanDecoration extends StatelessWidget {
-  const _JerricanDecoration();
+class _WaterContainerImage extends StatelessWidget {
+  const _WaterContainerImage();
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: 0.92,
-      child: const SizedBox(
-        width: 90,
-        height: 122,
-        child: CustomPaint(painter: _JerricanPainter()),
+    return SizedBox(
+      width: 112,
+      height: 160,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Image.asset(
+          'lib/assets/water_bottle.jpeg',
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const Center(
+            child: Icon(Icons.water_drop_rounded,
+                color: Colors.white, size: 40),
+          ),
+        ),
       ),
     );
   }
-}
-
-class _JerricanPainter extends CustomPainter {
-  const _JerricanPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final paint = Paint()..isAntiAlias = true;
-
-    // ── Handle (right-side D-loop) ──────────────────────────────────────────
-    final handleRRect = RRect.fromLTRBR(
-        w * 0.82, h * 0.20, w * 0.98, h * 0.54, const Radius.circular(7));
-    paint
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4.0
-      ..color = Colors.white.withOpacity(0.55);
-    canvas.drawRRect(handleRRect, paint);
-
-    // ── Main body ───────────────────────────────────────────────────────────
-    final bodyRRect = RRect.fromLTRBR(
-        0, h * 0.13, w * 0.83, h, const Radius.circular(12));
-
-    // Body fill
-    paint
-      ..style = PaintingStyle.fill
-      ..color = Colors.white.withOpacity(0.16);
-    canvas.drawRRect(bodyRRect, paint);
-
-    // Water level (bottom 62 %)
-    final bodyTop = h * 0.13;
-    final bodyHeight = h - bodyTop;
-    final waterTop = bodyTop + bodyHeight * 0.38;
-    final waterRRect = RRect.fromLTRBR(
-        1, waterTop, w * 0.83 - 1, h - 1, const Radius.circular(11));
-    paint.color = Colors.white.withOpacity(0.24);
-    canvas.drawRRect(waterRRect, paint);
-
-    // Body outline
-    paint
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
-      ..color = Colors.white.withOpacity(0.55);
-    canvas.drawRRect(bodyRRect, paint);
-
-    // Horizontal rib lines
-    paint
-      ..strokeWidth = 1.0
-      ..color = Colors.white.withOpacity(0.25);
-    final rib1Y = bodyTop + bodyHeight * 0.26;
-    final rib2Y = bodyTop + bodyHeight * 0.50;
-    canvas.drawLine(Offset(5, rib1Y), Offset(w * 0.83 - 5, rib1Y), paint);
-    canvas.drawLine(Offset(5, rib2Y), Offset(w * 0.83 - 5, rib2Y), paint);
-
-    // Left-edge highlight (3-D glint)
-    paint
-      ..style = PaintingStyle.fill
-      ..color = Colors.white.withOpacity(0.30);
-    canvas.drawRRect(
-        RRect.fromLTRBR(3, h * 0.18, 7, h * 0.88, const Radius.circular(2)),
-        paint);
-
-    // ── Cap neck ────────────────────────────────────────────────────────────
-    paint.color = Colors.white.withOpacity(0.30);
-    canvas.drawRRect(
-        RRect.fromLTRBR(w * 0.27, h * 0.04, w * 0.56, h * 0.14,
-            const Radius.circular(4)),
-        paint);
-
-    // Cap lid (slightly wider)
-    paint.color = Colors.white.withOpacity(0.50);
-    canvas.drawRRect(
-        RRect.fromLTRBR(w * 0.22, 0, w * 0.61, h * 0.06,
-            const Radius.circular(3)),
-        paint);
-
-    // ── "20L" label ─────────────────────────────────────────────────────────
-    final tp = TextPainter(
-      text: const TextSpan(
-        text: '20L',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 17,
-          fontWeight: FontWeight.w900,
-          letterSpacing: -0.5,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final bodyMidX = w * 0.83 / 2;
-    final bodyMidY = bodyTop + bodyHeight / 2;
-    tp.paint(canvas,
-        Offset(bodyMidX - tp.width / 2, bodyMidY - tp.height / 2 + 4));
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
 class _ActiveOrderBanner extends StatelessWidget {
@@ -926,7 +871,7 @@ class _ActiveOrderBanner extends StatelessWidget {
                       borderRadius: BorderRadius.circular(13),
                     ),
                     child: const Center(
-                      child: Icon(Icons.local_shipping_rounded,
+                      child: Icon(Icons.two_wheeler_rounded,
                           color: Color(0xFF0077B6), size: 21),
                     ),
                   ),

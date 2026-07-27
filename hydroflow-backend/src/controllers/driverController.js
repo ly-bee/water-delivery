@@ -34,7 +34,7 @@ const registerDriver = async (req, res) => {
     const user_id = req.user.id;
 
     if (!vehicle_plate) {
-      return res.status(400).json({ error: 'MISSING_FIELDS', message: 'Vehicle plate is required' });
+      return res.status(400).json({ error: 'MISSING_FIELDS', message: 'Motorbike plate is required' });
     }
 
     const existing = await pool.query('SELECT id FROM drivers WHERE user_id = $1', [user_id]);

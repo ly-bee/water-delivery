@@ -89,10 +89,12 @@ class _DriverDeliveriesScreenState extends State<DriverDeliveriesScreen> {
       final dt = DateTime.parse(iso).toLocal();
       final now = DateTime.now();
       final diff = now.difference(dt).inDays;
-      if (diff == 0) return 'Today';
-      if (diff == 1) return 'Yesterday';
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m2 = dt.minute.toString().padLeft(2, '0');
+      if (diff == 0) return 'Today · $h:$m2';
+      if (diff == 1) return 'Yesterday · $h:$m2';
       const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      return '${dt.day} ${m[dt.month-1]}';
+      return '${dt.day} ${m[dt.month-1]} · $h:$m2';
     } catch (_) { return ''; }
   }
 
@@ -208,7 +210,7 @@ class _DriverDeliveriesScreenState extends State<DriverDeliveriesScreen> {
                             final customer = o['customer_name'] ?? 'Customer';
                             final qty =
                                 '${o['quantity'] ?? 1} × ${o['volume_liters'] ?? 20}L';
-                            final amount = 'KSh ${o['amount_ksh'] ?? '-'}';
+                            final amount = 'KSh ${o['delivery_fee'] ?? '-'}';
                             final date = _formatDate(o['created_at']?.toString());
 
                             return GestureDetector(
@@ -237,7 +239,7 @@ class _DriverDeliveriesScreenState extends State<DriverDeliveriesScreen> {
                                       ),
                                       child: Center(
                                         child: Icon(
-                                          Icons.local_shipping_rounded,
+                                          Icons.two_wheeler_rounded,
                                           color: _statusFg(status),
                                           size: 21,
                                         ),

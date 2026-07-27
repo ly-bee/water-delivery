@@ -520,8 +520,8 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   if (_emailMissing || _vehicleMissing)
                     _IncompleteBanner(
                       message: _emailMissing
-                          ? 'Add your email and vehicle details to complete your profile.'
-                          : 'Add your vehicle details to start receiving deliveries.',
+                          ? 'Add your email and motorbike details to complete your profile.'
+                          : 'Add your motorbike details to start receiving deliveries.',
                       onTap: _showEditSheet,
                       p: p,
                       color: const Color(0xFF1E9E47),
@@ -581,12 +581,12 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   ]),
                   const SizedBox(height: 16),
 
-                  // ── Vehicle ──────────────────────────────────────────
-                  _SectionLabel('Vehicle', p: p),
+                  // ── Motorbike ──────────────────────────────────────────
+                  _SectionLabel('Motorbike', p: p),
                   const SizedBox(height: 8),
                   _InfoCard(p: p, isDark: isDark, rows: [
                     _InfoRow(
-                      icon: Icons.local_shipping_rounded,
+                      icon: Icons.two_wheeler_rounded,
                       iconBg: const Color(0xFFE9F8EE),
                       iconFg: const Color(0xFF1E9E47),
                       label: 'Description',
@@ -1619,7 +1619,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Vehicle details',
+                  'Motorbike details',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -1629,10 +1629,10 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
               ),
               const SizedBox(height: 10),
               _Field(
-                label: 'Vehicle description',
+                label: 'Motorbike description',
                 controller: _vehicleInfoCtrl,
-                hint: 'e.g. White Toyota Pickup',
-                icon: Icons.local_shipping_rounded,
+                hint: 'e.g. Black Bajaj Boxer',
+                icon: Icons.two_wheeler_rounded,
                 accentColor: accentColor,
                 p: p,
                 isDark: isDark,

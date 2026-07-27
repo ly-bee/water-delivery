@@ -166,7 +166,7 @@ class Aq {
     switch (s) {
       case 'PENDING':    return Icons.schedule_rounded;
       case 'ASSIGNED':   return Icons.person_pin_rounded;
-      case 'IN_TRANSIT': return Icons.local_shipping_rounded;
+      case 'IN_TRANSIT': return Icons.two_wheeler_rounded;
       case 'DELIVERED':  return Icons.check_circle_outline_rounded;
       case 'COMPLETED':  return Icons.verified_rounded;
       case 'CANCELLED':  return Icons.cancel_outlined;

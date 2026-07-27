@@ -56,7 +56,7 @@ const createMarkerIcon = (status, isSelected) => L.divIcon({
     border:${isSelected ? '3px solid #1E1E1E' : '2.5px solid white'};
     border-radius:50%;display:flex;align-items:center;justify-content:center;
     box-shadow:${isSelected ? '0 0 0 3px rgba(94,143,112,0.3),0 4px 12px rgba(0,0,0,0.3)' : '0 2px 6px rgba(0,0,0,0.2)'};
-    font-size:${isSelected ? 16 : 13}px;">🚚</div>`,
+    font-size:${isSelected ? 16 : 13}px;">🏍️</div>`,
   iconSize:    [isSelected ? 40 : 34, isSelected ? 40 : 34],
   iconAnchor:  [isSelected ? 20 : 17, isSelected ? 20 : 17],
   popupAnchor: [0, -22],
@@ -774,7 +774,7 @@ const DriversPage = () => {
             <div className="table-head-row" style={{ gridTemplateColumns: '2.4fr 1.5fr 1.1fr 0.65fr 0.65fr 28px' }}>
               <span>Driver</span>
               <span>Status</span>
-              <span>Vehicle</span>
+              <span>Motorbike</span>
               <span>Today</span>
               <span>Rating</span>
               <span />

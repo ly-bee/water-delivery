@@ -61,7 +61,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
       case 'COMPLETED': return Icons.check_rounded;
       case 'PENDING':
       case 'ASSIGNED': return Icons.schedule_rounded;
-      case 'IN_TRANSIT': return Icons.local_shipping_rounded;
+      case 'IN_TRANSIT': return Icons.two_wheeler_rounded;
       case 'CANCELLED': return Icons.close_rounded;
       default: return Icons.schedule_rounded;
     }
@@ -90,10 +90,10 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
         final m = dt.minute.toString().padLeft(2, '0');
         return 'Today · $h:$m';
       }
-      if (diff == 1) return 'Yesterday';
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       final h = dt.hour.toString().padLeft(2, '0');
       final m = dt.minute.toString().padLeft(2, '0');
+      if (diff == 1) return 'Yesterday · $h:$m';
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       return '${dt.day} ${months[dt.month - 1]} · $h:$m';
     } catch (_) {
       return 'Recent';

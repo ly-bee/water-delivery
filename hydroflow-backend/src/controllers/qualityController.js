@@ -1,15 +1,20 @@
 const { pool } = require('../config/db');
 
 // POST /api/quality/orders/:id/verify
-// Marks a DELIVERED order as COMPLETED (no IoT TDS check anymore)
+// Resident's "confirm receipt" action — the step between a driver marking an order DELIVERED
+// and the resident being allowed to rate it (no IoT TDS check anymore; name kept for now).
 const verifyQuality = async (req, res) => {
   try {
     const { id } = req.params;
+    const user_id = req.user.id;
 
-    const orderResult = await pool.query('SELECT * FROM orders WHERE id = $1', [id]);
+    const orderResult = await pool.query(
+      'SELECT * FROM orders WHERE id = $1 AND user_id = $2',
+      [id, user_id]
+    );
 
     if (orderResult.rows.length === 0) {
-      return res.status(404).json({ error: 'ORDER_NOT_FOUND', message: 'Order not found' });
+      return res.status(404).json({ error: 'ORDER_NOT_FOUND', message: 'Order not found or does not belong to you' });
     }
 
     const order = orderResult.rows[0];
@@ -17,17 +22,20 @@ const verifyQuality = async (req, res) => {
     if (order.status !== 'DELIVERED') {
       return res.status(400).json({
         error: 'INVALID_STATUS',
-        message: `Order must be DELIVERED before completing. Current status: ${order.status}`,
+        message: `Order must be delivered before you can confirm receipt. Current status: ${order.status}`,
       });
     }
 
+    // completed_at already reflects when the driver delivered the order (set at the
+    // DELIVERED transition) — leave it untouched here, it feeds driver earnings/revenue
+    // reporting and shouldn't shift to whenever the resident happens to confirm.
     const result = await pool.query(
-      `UPDATE orders SET status = 'COMPLETED', completed_at = NOW() WHERE id = $1 RETURNING *`,
+      `UPDATE orders SET status = 'COMPLETED' WHERE id = $1 RETURNING *`,
       [id]
     );
 
     return res.status(200).json({
-      message: 'Order marked as completed',
+      message: 'Delivery confirmed — you can now rate your order.',
       verdict: 'PASSED',
       order: result.rows[0],
     });

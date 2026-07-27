@@ -278,14 +278,14 @@ const DashboardPage = () => {
           </div>
         ) : (
           <>
-            <div className="table-head-row" style={{ [COL]: '28px 2fr 2fr 1.2fr 72px 112px' }}>
+            <div className="table-head-row" style={{ [COL]: '28px 2fr 2fr 1.2fr 72px 130px 112px' }}>
               <span>#</span><span>Customer</span><span>Address</span>
-              <span>Amount</span><span>Vol.</span><span>Status</span>
+              <span>Amount</span><span>Vol.</span><span>Placed</span><span>Status</span>
             </div>
             {recentOrders.map((o, i) => {
               const m = STATUS_META[o.status] || { label: o.status, cls: 'badge-cancelled' };
               return (
-                <div key={o.id} className="table-data-row" style={{ [COL]: '28px 2fr 2fr 1.2fr 72px 112px' }}>
+                <div key={o.id} className="table-data-row" style={{ [COL]: '28px 2fr 2fr 1.2fr 72px 130px 112px' }}>
                   <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{i + 1}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div className="avatar">{initials(o.customer_name)}</div>
@@ -302,6 +302,9 @@ const DashboardPage = () => {
                   </p>
                   <p className="num" style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
                     {o.volume_liters}L
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+                    {new Date(o.created_at).toLocaleDateString('en-KE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </p>
                   <span className={`badge ${m.cls}`}>{m.label}</span>
                 </div>

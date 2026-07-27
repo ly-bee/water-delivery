@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'react-toastify';
-import { ShoppingCart, Truck, Droplets, Phone, MapPin, UserCheck, Star, RefreshCw } from 'lucide-react';
+import { ShoppingCart, Motorbike, Droplets, Phone, MapPin, UserCheck, Star, RefreshCw } from 'lucide-react';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import { orderAPI, driverAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -83,6 +83,31 @@ const AdminOrderCard = ({ order, drivers, onRefresh }) => {
         )}
         {order.notes && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>📝 {order.notes}</p>}
 
+        {(order.pod_photo_url || order.pod_signature_url) && (
+          <div style={{ marginTop: 10 }}>
+            <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px' }}>
+              Proof of delivery
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {order.pod_photo_url && (
+                <a href={order.pod_photo_url} target="_blank" rel="noreferrer">
+                  <img src={order.pod_photo_url} alt="Delivery proof" style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                </a>
+              )}
+              {order.pod_signature_url && (
+                <a href={order.pod_signature_url} target="_blank" rel="noreferrer">
+                  <img src={order.pod_signature_url} alt="Customer signature" style={{ width: 72, height: 56, objectFit: 'contain', background: '#fff', borderRadius: 8, border: '1px solid var(--border)' }} />
+                </a>
+              )}
+              {order.pod_empty_collected > 0 && (
+                <span style={{ alignSelf: 'center', fontSize: 11, color: 'var(--text-secondary)' }}>
+                  {order.pod_empty_collected} empt{order.pod_empty_collected === 1 ? 'y' : 'ies'} collected
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {showAssign && (
           <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '12px', marginTop: 12 }}>
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>Select a driver</p>
@@ -112,7 +137,7 @@ const AdminOrderCard = ({ order, drivers, onRefresh }) => {
         {order.status === 'ASSIGNED' && (
           <button className="btn btn-primary btn-sm" disabled={loading}
             onClick={() => run(() => orderAPI.updateStatus(order.id, 'IN_TRANSIT'), 'Marked In Transit')}>
-            <Truck size={12} /> In Transit
+            <Motorbike size={12} /> In Transit
           </button>
         )}
         {order.status === 'IN_TRANSIT' && (
@@ -169,7 +194,7 @@ const DriverOrderCard = ({ order, onRefresh }) => {
           </div>
           <div className="order-info-cell">
             <p className="order-info-lbl">Earnings</p>
-            <p className="order-info-val" style={{ fontSize: 20 }}>KSh {parseFloat(order.amount_ksh).toLocaleString()}</p>
+            <p className="order-info-val" style={{ fontSize: 20 }}>KSh {parseFloat(order.delivery_fee).toLocaleString()}</p>
           </div>
         </div>
 
@@ -203,7 +228,7 @@ const DriverOrderCard = ({ order, onRefresh }) => {
       <div className="order-card-footer">
         {order.status === 'ASSIGNED' && (
           <button className="btn btn-primary" style={{ flex: 1 }} disabled={loading} onClick={() => handleStatus('IN_TRANSIT')}>
-            <Truck size={13} /> Start Delivery
+            <Motorbike size={13} /> Start Delivery
           </button>
         )}
         {order.status === 'IN_TRANSIT' && (
@@ -246,7 +271,7 @@ const OrdersPage = () => {
   const assigned  = useMemo(() => orders.filter(o => o.status === 'ASSIGNED').length, [orders]);
   const inTransit = useMemo(() => orders.filter(o => o.status === 'IN_TRANSIT').length, [orders]);
   const delivered = useMemo(() => orders.filter(o => ['DELIVERED','COMPLETED'].includes(o.status)).length, [orders]);
-  const earnings  = useMemo(() => orders.filter(o => ['DELIVERED','COMPLETED'].includes(o.status)).reduce((s,o) => s + (parseFloat(o.amount_ksh)||0), 0), [orders]);
+  const earnings  = useMemo(() => orders.filter(o => ['DELIVERED','COMPLETED'].includes(o.status)).reduce((s,o) => s + (parseFloat(o.delivery_fee)||0), 0), [orders]);
 
   return (
     <DashboardLayout>

@@ -13,6 +13,9 @@ class OrderDetailScreen extends StatefulWidget {
 class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Map<String, dynamic>? _order;
   bool _loading = true;
+  bool _confirming = false;
+  bool _submittingRating = false;
+  int _selectedStars = 0;
 
   @override
   void initState() {
@@ -26,9 +29,45 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       if (mounted) setState(() {
         _order = res['success'] == true ? res['order'] as Map<String, dynamic>? : null;
         _loading = false;
+        _selectedStars = 0;
       });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  int get _existingRating =>
+      int.tryParse(_order?['rating']?.toString() ?? '') ?? 0;
+
+  Future<void> _confirmReceipt() async {
+    if (_confirming) return;
+    setState(() => _confirming = true);
+    final res = await ApiService.confirmDelivery(widget.orderId);
+    if (!mounted) return;
+    setState(() => _confirming = false);
+    if (res['success'] == true) {
+      _load();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(res['message'] ?? 'Could not confirm delivery'),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  Future<void> _submitRating() async {
+    if (_selectedStars == 0 || _submittingRating) return;
+    setState(() => _submittingRating = true);
+    final res = await ApiService.rateOrder(widget.orderId, _selectedStars);
+    if (!mounted) return;
+    setState(() => _submittingRating = false);
+    if (res['success'] == true) {
+      _load();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(res['message'] ?? 'Could not submit rating'),
+        behavior: SnackBarBehavior.floating,
+      ));
     }
   }
 
@@ -62,7 +101,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       case 'DELIVERED':
       case 'COMPLETED': return Icons.check_rounded;
       case 'PENDING': return Icons.schedule_rounded;
-      case 'IN_TRANSIT': return Icons.local_shipping_rounded;
+      case 'IN_TRANSIT': return Icons.two_wheeler_rounded;
       case 'CANCELLED': return Icons.close_rounded;
       default: return Icons.schedule_rounded;
     }
@@ -96,6 +135,265 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
+  String _formatTime(String? isoDate) {
+    if (isoDate == null) return '';
+    try {
+      final dt = DateTime.parse(isoDate).toLocal();
+      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final m = dt.minute.toString().padLeft(2, '0');
+      return '$h:$m ${dt.hour < 12 ? "AM" : "PM"}';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String? get _driverName {
+    final n = _order?['driver_name']?.toString();
+    return (n == null || n.isEmpty) ? null : n;
+  }
+
+  String get _driverInitials {
+    final parts = (_driverName ?? '').split(' ').where((w) => w.isNotEmpty).toList();
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return parts.isNotEmpty ? parts[0][0].toUpperCase() : '?';
+  }
+
+  String get _driverVehicle {
+    final info = _order?['driver_vehicle_info']?.toString();
+    final plate = _order?['driver_vehicle_plate']?.toString();
+    final hasInfo = info != null && info.isNotEmpty;
+    final hasPlate = plate != null && plate.isNotEmpty && plate != 'TBD';
+    if (hasInfo && hasPlate) return '$info · $plate';
+    if (hasInfo) return info;
+    if (hasPlate) return plate;
+    return 'Motorbike details not set';
+  }
+
+  String get _driverRatingText {
+    final r = double.tryParse(_order?['driver_rating']?.toString() ?? '');
+    return (r == null || r <= 0) ? '—' : r.toStringAsFixed(1);
+  }
+
+  String? get _podPhotoUrl => _order?['pod_photo_url']?.toString();
+  String? get _podSignatureUrl => _order?['pod_signature_url']?.toString();
+  int get _podEmptyCollected =>
+      int.tryParse(_order?['pod_empty_collected']?.toString() ?? '') ?? 0;
+  bool get _hasProofOfDelivery =>
+      (_podPhotoUrl != null && _podPhotoUrl!.isNotEmpty) ||
+      (_podSignatureUrl != null && _podSignatureUrl!.isNotEmpty);
+
+  Widget _buildProofOfDelivery(AqPalette p) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: p.bgSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: p.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PROOF OF DELIVERY',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: p.textMuted,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (_podPhotoUrl != null && _podPhotoUrl!.isNotEmpty)
+                Expanded(
+                  child: _ProofThumb(label: 'Photo', imageUrl: _podPhotoUrl!, p: p),
+                ),
+              if (_podPhotoUrl != null &&
+                  _podPhotoUrl!.isNotEmpty &&
+                  _podSignatureUrl != null &&
+                  _podSignatureUrl!.isNotEmpty)
+                const SizedBox(width: 12),
+              if (_podSignatureUrl != null && _podSignatureUrl!.isNotEmpty)
+                Expanded(
+                  child: _ProofThumb(
+                      label: 'Signature', imageUrl: _podSignatureUrl!, p: p),
+                ),
+            ],
+          ),
+          if (_podEmptyCollected > 0) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.recycling_rounded,
+                    color: Color(0xFFC9742B), size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  '$_podEmptyCollected empt${_podEmptyCollected == 1 ? 'y' : 'ies'} collected',
+                  style: TextStyle(fontSize: 12.5, color: p.textSecondary),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfirmReceiptCard(AqPalette p) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: p.bgSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: p.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.task_alt_rounded,
+                  color: Color(0xFF0077B6), size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Received your order?',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: p.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Confirm receipt so you can rate your delivery.',
+            style: TextStyle(fontSize: 12.5, color: p.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: _confirming ? null : _confirmReceipt,
+            child: Container(
+              height: 46,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0077B6),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Center(
+                child: _confirming
+                    ? const SizedBox(
+                        width: 18, height: 18,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : const Text(
+                        'Confirm delivery received',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingCard(AqPalette p) {
+    final rated = _existingRating > 0;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: p.bgSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: p.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            rated ? 'YOUR RATING' : 'RATE YOUR DELIVERY',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: p.textMuted,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(5, (i) {
+              final starIndex = i + 1;
+              final filled =
+                  rated ? starIndex <= _existingRating : starIndex <= _selectedStars;
+              return GestureDetector(
+                onTap: (rated || _submittingRating)
+                    ? null
+                    : () => setState(() => _selectedStars = starIndex),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Icon(
+                    filled ? Icons.star_rounded : Icons.star_outline_rounded,
+                    size: 34,
+                    color: const Color(0xFFF4A261),
+                  ),
+                ),
+              );
+            }),
+          ),
+          if (!rated) ...[
+            const SizedBox(height: 14),
+            GestureDetector(
+              onTap: (_selectedStars == 0 || _submittingRating)
+                  ? null
+                  : _submitRating,
+              child: Container(
+                height: 46,
+                decoration: BoxDecoration(
+                  color: _selectedStars == 0
+                      ? p.bgElevated
+                      : const Color(0xFF1E9E47),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: _submittingRating
+                      ? const SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : Text(
+                          'Submit rating',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: _selectedStars == 0
+                                ? p.textMuted
+                                : Colors.white,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                'Thanks for your feedback!',
+                style: TextStyle(fontSize: 12.5, color: p.textSecondary),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = Aq.of(context);
@@ -105,6 +403,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final amtRaw = int.tryParse(_order?['amount_ksh']?.toString() ?? '0') ?? 0;
     final subtotal = (amtRaw - 60).clamp(0, 99999);
     final date = _formatDate(_order?['created_at']?.toString());
+    final deliveredTime = _formatTime(_order?['completed_at']?.toString());
 
     return Scaffold(
       backgroundColor: p.bgPage,
@@ -274,6 +573,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           ],
                         ),
                       ),
+                      if (_driverName != null) ...[
                       const SizedBox(height: 14),
 
                       // Delivered by
@@ -299,10 +599,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             const SizedBox(height: 12),
                             Row(
                               children: [
-                                const SizedBox(
+                                SizedBox(
                                   width: 44, height: 44,
                                   child: DecoratedBox(
-                                    decoration: BoxDecoration(
+                                    decoration: const BoxDecoration(
                                       gradient: LinearGradient(
                                         colors: [Color(0xFF48CAE4), Color(0xFF0077B6)],
                                       ),
@@ -310,8 +610,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                     ),
                                     child: Center(
                                       child: Text(
-                                        'PO',
-                                        style: TextStyle(
+                                        _driverInitials,
+                                        style: const TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w700,
                                           color: Colors.white,
@@ -326,7 +626,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Peter Otieno',
+                                        _driverName!,
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w700,
@@ -334,7 +634,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                         ),
                                       ),
                                       Text(
-                                        'White Pickup · KCA 123X',
+                                        _driverVehicle,
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: p.textSecondary,
@@ -349,7 +649,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                         size: 14, color: Color(0xFFF4A261)),
                                     const SizedBox(width: 4),
                                     Text(
-                                      '4.9',
+                                      _driverRatingText,
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
@@ -367,7 +667,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                     size: 14, color: p.textSecondary),
                                 const SizedBox(width: 7),
                                 Text(
-                                  'Delivered at 8:52 AM',
+                                  deliveredTime.isNotEmpty
+                                      ? 'Delivered at $deliveredTime'
+                                      : 'Not yet delivered',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     color: p.textSecondary,
@@ -379,13 +681,37 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
+                      ],
+
+                      // Proof of delivery
+                      if (_hasProofOfDelivery) ...[
+                        _buildProofOfDelivery(p),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // Confirm receipt (unlocks rating) / rate the order
+                      if (status == 'DELIVERED') ...[
+                        _buildConfirmReceiptCard(p),
+                        const SizedBox(height: 14),
+                      ] else if (status == 'COMPLETED') ...[
+                        _buildRatingCard(p),
+                        const SizedBox(height: 14),
+                      ],
 
                       // Reorder
                       GestureDetector(
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const OrderScreen()),
+                            builder: (_) => OrderScreen(
+                              initialVolumeLiters: int.tryParse(
+                                  _order?['volume_liters']?.toString() ?? ''),
+                              initialQuantity: int.tryParse(
+                                  _order?['quantity']?.toString() ?? ''),
+                              initialReturnEmpty:
+                                  _order?['return_empties'] == true,
+                            ),
+                          ),
                         ),
                         child: Container(
                           height: 54,
@@ -448,6 +774,64 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _ProofThumb extends StatelessWidget {
+  final String label;
+  final String imageUrl;
+  final AqPalette p;
+  const _ProofThumb({required this.label, required this.imageUrl, required this.p});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => showDialog(
+        context: context,
+        builder: (_) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: InteractiveViewer(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(imageUrl, fit: BoxFit.contain),
+            ),
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: AspectRatio(
+              aspectRatio: 1.4,
+              child: Container(
+                color: p.bgElevated,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (_, child, progress) => progress == null
+                      ? child
+                      : Center(
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: p.primary)),
+                  errorBuilder: (_, __, ___) => Center(
+                    child: Icon(Icons.broken_image_rounded,
+                        color: p.textMuted, size: 22),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: p.textSecondary)),
+        ],
+      ),
     );
   }
 }

@@ -46,7 +46,7 @@ class _DriverEarningsScreenState extends State<DriverEarningsScreen> {
   }
 
   double get _total =>
-      _filtered.fold(0.0, (s, o) => s + (double.tryParse(o['amount_ksh'].toString()) ?? 0));
+      _filtered.fold(0.0, (s, o) => s + (double.tryParse(o['delivery_fee'].toString()) ?? 0));
 
   List<double> get _weekBars {
     final now = DateTime.now();
@@ -57,7 +57,7 @@ class _DriverEarningsScreenState extends State<DriverEarningsScreen> {
           final d = DateTime.parse(o['created_at'].toString()).toLocal();
           return d.day == day.day && d.month == day.month && d.year == day.year;
         } catch (_) { return false; }
-      }).fold(0.0, (s, o) => s + (double.tryParse(o['amount_ksh'].toString()) ?? 0));
+      }).fold(0.0, (s, o) => s + (double.tryParse(o['delivery_fee'].toString()) ?? 0));
     });
   }
 
@@ -73,7 +73,9 @@ class _DriverEarningsScreenState extends State<DriverEarningsScreen> {
     try {
       final dt = DateTime.parse(iso).toLocal();
       const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      return '${dt.day} ${m[dt.month-1]}';
+      final h = dt.hour.toString().padLeft(2, '0');
+      final mi = dt.minute.toString().padLeft(2, '0');
+      return '${dt.day} ${m[dt.month-1]} · $h:$mi';
     } catch (_) { return 'Recent'; }
   }
 
@@ -367,7 +369,7 @@ class _DriverEarningsScreenState extends State<DriverEarningsScreen> {
                   else
                     ...List.generate(_filtered.length, (i) {
                       final o = _filtered[i];
-                      final amount = double.tryParse(o['amount_ksh'].toString()) ?? 0;
+                      final amount = double.tryParse(o['delivery_fee'].toString()) ?? 0;
                       final id = (o['id'] as String?)
                               ?.substring(0, 8)
                               .toUpperCase() ??

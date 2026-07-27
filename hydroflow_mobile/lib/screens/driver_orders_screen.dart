@@ -253,7 +253,7 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Center(
-                          child: Icon(Icons.local_shipping_rounded,
+                          child: Icon(Icons.two_wheeler_rounded,
                               color: Color(0xFF2DC653), size: 30),
                         ),
                       ),
@@ -521,7 +521,7 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
               _StatCard(
                 label: "Today's jobs",
                 value: '$todayJobs',
-                icon: Icons.local_shipping_rounded,
+                icon: Icons.two_wheeler_rounded,
                 iconBg: Colors.white.withValues(alpha: 0.18),
                 iconFg: Colors.white,
                 valueFg: Colors.white,
@@ -837,7 +837,7 @@ class _DeliveryRow extends StatelessWidget {
     final customer = order['customer_name'] ?? 'Customer';
     final address = order['delivery_address'] ?? '';
     final qty = '${order['quantity'] ?? 1} × ${order['volume_liters'] ?? 20}L';
-    final amount = 'KSh ${order['amount_ksh'] ?? '-'}';
+    final amount = 'KSh ${order['delivery_fee'] ?? '-'}';
 
     return GestureDetector(
       onTap: onTap,
@@ -858,7 +858,7 @@ class _DeliveryRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(13),
               ),
               child: const Center(
-                child: Icon(Icons.local_shipping_rounded,
+                child: Icon(Icons.two_wheeler_rounded,
                     color: Color(0xFF1E9E47), size: 21),
               ),
             ),
