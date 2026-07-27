@@ -5,7 +5,7 @@ const { initiateSTKPush } = require('../services/mpesaService');
 // Initiates STK Push for an order
 const initiatePayment = async (req, res) => {
   try {
-    const { order_id } = req.body;
+    const { order_id, phone } = req.body;
     const userId = req.user.id;
 
     if (!order_id) {
@@ -34,17 +34,25 @@ const initiatePayment = async (req, res) => {
 
     const order = orderResult.rows[0];
 
-    // Only PENDING orders can be paid
-    if (order.status !== 'PENDING') {
+    // Already paid, or too far along / cancelled — nothing left to pay for
+    if (order.mpesa_receipt) {
+      return res.status(400).json({
+        error: 'ALREADY_PAID',
+        message: 'This order has already been paid for.',
+      });
+    }
+    // A driver can already be auto-assigned at creation time (see orderController.createOrder),
+    // so PENDING and ASSIGNED both still need to accept payment — not just PENDING.
+    if (!['PENDING', 'ASSIGNED'].includes(order.status)) {
       return res.status(400).json({
         error: 'INVALID_STATUS',
-        message: `Order is already ${order.status}. Only PENDING orders can be paid.`,
+        message: `Order is ${order.status} and can no longer be paid.`,
       });
     }
 
-    // Initiate STK Push
+    // Initiate STK Push — honor a phone entered at checkout, fall back to the account phone
     const stkResponse = await initiateSTKPush({
-      phone: order.phone,
+      phone: phone || order.phone,
       amount: order.amount_ksh,
       orderId: order.id,
       productName: order.product_name,
@@ -99,10 +107,12 @@ const mpesaCallback = async (req, res) => {
       const receipt = items.find((i) => i.Name === 'MpesaReceiptNumber')?.Value;
       const amount = items.find((i) => i.Name === 'Amount')?.Value;
 
-      // Update order to PAID
+      // Record the payment. Only move status to PAID if the order was still PENDING —
+      // if a driver was already auto-assigned (order is ASSIGNED/IN_TRANSIT), paying for it
+      // must not clobber that delivery-progress status back down to PAID.
       await pool.query(
-        `UPDATE orders 
-         SET status = 'PAID', 
+        `UPDATE orders
+         SET status = CASE WHEN status = 'PENDING' THEN 'PAID' ELSE status END,
              mpesa_receipt = $1,
              paid_at = NOW()
          WHERE id = $2`,

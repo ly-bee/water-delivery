@@ -67,7 +67,9 @@ const initiateSTKPush = async ({ phone, amount, orderId, productName }) => {
         Password: password,
         Timestamp: timestamp,
         TransactionType: 'CustomerPayBillOnline',
-        Amount: amount,
+        // Safaricom's STK endpoint expects a whole-number Amount — pg returns DECIMAL
+        // columns (order.amount_ksh) as strings like "260.00", which it rejects.
+        Amount: Math.round(Number(amount)),
         PartyA: formatPhone(phone),
         PartyB: MPESA_SHORTCODE,
         PhoneNumber: formatPhone(phone),

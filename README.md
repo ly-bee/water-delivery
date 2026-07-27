@@ -1,253 +1,73 @@
-# 💧 HydroFlow — Integrated Smart Water Delivery & Quality Monitoring System
+# HydroFlow — Water Delivery System
 
----
+HydroFlow is a water delivery marketplace for Kenya. Residents order drinking water (in 10L or 20L
+jerricans) from a mobile app; drivers see and fulfil those orders from the same app; admins manage
+orders, drivers, and users from a web dashboard. Payment is by M-Pesa (mobile money).
 
-## 📌 Project Overview
+This repo contains three applications that all talk to one shared backend:
 
-HydroFlow is an IoT-powered smart water management ecosystem designed for residential households
-in Juja, Kenya. It solves three critical water management failures:
+| App | Who uses it | What they do |
+|---|---|---|
+| **Resident app** (mobile) | Customers | Place orders, track delivery live, pay by M-Pesa, rate their delivery |
+| **Driver app** (mobile) | Delivery drivers | Go online/offline, see assigned deliveries, navigate, capture proof of delivery |
+| **Admin dashboard** (web) | Staff/admins | See all orders, assign drivers, manage the driver fleet, view live driver locations on a map |
 
-| Problem | HydroFlow Solution |
+> **Note on scope:** an earlier version of this README (and `docs/API.md`, `docs/DATABASE_SCHEMA.md`,
+> `docs/SPRINTS.md`) described a more ambitious original plan — IoT tank sensors, a "Predictive Thirst
+> Engine", automated leak detection, MongoDB, a Python sensor simulator. **None of that was built.**
+> The system that actually exists is the simpler, working water-delivery marketplace described in this
+> document and the docs below. See [`HANDOVER_NOTES.md`](HANDOVER_NOTES.md) for more on this.
+
+## How it fits together
+
+```mermaid
+graph TB
+    Resident["📱 Resident app<br/>(Flutter — Android/iOS)"]
+    Driver["📱 Driver app<br/>(Flutter — same codebase)"]
+    Admin["💻 Admin dashboard<br/>(React, browser)"]
+
+    API["🖥️ Backend API<br/>Node.js + Express<br/>REST + Socket.IO"]
+    DB[("PostgreSQL<br/>(hosted on Neon)")]
+
+    Cloudinary["☁️ Cloudinary<br/>proof-of-delivery photos/signatures"]
+    Mpesa["💳 Safaricom M-Pesa<br/>Daraja API"]
+    AT["✉️ Africa's Talking<br/>SMS (OTP login)"]
+    Gmail["📧 Gmail SMTP<br/>account verification email"]
+
+    Resident -- "HTTPS / REST" --> API
+    Driver -- "HTTPS / REST" --> API
+    Admin -- "HTTPS / REST" --> API
+    Admin -. "Socket.IO<br/>(live driver locations)" .-> API
+
+    API --> DB
+    API --> Cloudinary
+    API --> Mpesa
+    API --> AT
+    API --> Gmail
+```
+
+Everything goes through the one backend — the two mobile apps and the web dashboard never talk to
+each other directly, and none of them talk to Cloudinary/M-Pesa/etc. directly either (the backend is
+the only thing holding those credentials).
+
+## Tech stack
+
+| Part | Stack |
 |---|---|
-| 🚱 **Supply Uncertainty** — tank runs dry before user notices | **Predictive Thirst Engine** — predicts empty date, auto-prompts order |
-| 🧪 **Quality Fraud** — salty borehole water sold as fresh council water | **TDS Sensor Verification** — money held in escrow until quality confirmed |
-| 💧 **Silent Wastage** — hidden leaks go undetected for months | **Night Watch Algorithm** — monitors 2AM–4AM for leak patterns |
+| Backend API | Node.js, Express 5, PostgreSQL (via `pg`), JWT auth, Socket.IO |
+| Admin dashboard | React 19 (Create React App), plain CSS (no UI framework), `axios`, `react-leaflet` for the live map |
+| Resident + driver app | Flutter (Dart), single codebase, `provider` for state, `http` package for API calls |
+| Database | PostgreSQL, currently hosted on [Neon](https://neon.tech) (serverless Postgres) |
+| File storage | Cloudinary (proof-of-delivery photos and customer signatures) |
+| Payments | Safaricom M-Pesa Daraja API (STK Push), currently wired to the **sandbox** environment only |
+| SMS | Africa's Talking (OTP codes for phone login) |
+| Email | Gmail SMTP via `nodemailer` (account verification emails for the web dashboard) |
 
----
+## Where to go next
 
-## 🏗️ System Architecture
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     HydroFlow ECOSYSTEM                        │
-├──────────────┬───────────────────┬───────────────────────────┤
-│  IoT Layer   │   Cloud Backend   │      User Layer           │
-│              │                   │                           │
-│ ESP32 Chip   │  Node.js/Express  │  Flutter Mobile App       │
-│ Ultrasonic   │  PostgreSQL       │  (Android — Residents)    │
-│ Sensor       │  MongoDB          │                           │
-│ TDS Sensor   │  Google Cloud     │  React.js Web Dashboard   │
-│              │                   │  (Drivers & Admins)       │
-│ [Simulated   │  M-Pesa Daraja    │                           │
-│  via Python  │  Africa's Talking │                           │
-│  during dev] │  Google Maps API  │                           │
-└──────────────┴───────────────────┴───────────────────────────┘
-```
-
----
-
-## 📁 Repository Structure
-
-```
-HydroFlow/
-├── 📂 hydroflow-backend/          # Node.js + Express REST API
-│   ├── src/
-│   │   ├── config/               # DB connections, env config
-│   │   ├── controllers/          # Route handler logic
-│   │   ├── middleware/           # Auth, error handling
-│   │   ├── models/               # PostgreSQL + MongoDB schemas
-│   │   ├── routes/               # API route definitions
-│   │   ├── services/             # Business logic (Predictive Thirst, Leak Detection)
-│   │   └── utils/                # Helpers, constants
-│   └── tests/                    # Jest unit + integration tests
-│
-├── 📂 hydroflow-frontend/         # React.js Driver & Admin Dashboard
-│   └── src/
-│       ├── components/           # Reusable UI components
-│       ├── pages/                # Route-level page components
-│       ├── hooks/                # Custom React hooks
-│       ├── services/             # API calls
-│       └── store/                # State management (Zustand)
-│
-├── 📂 hydroflow-mobile/           # Flutter Mobile App (Residents)
-│   └── lib/
-│       ├── screens/              # App screens
-│       ├── widgets/              # Reusable widgets
-│       ├── services/             # API + local services
-│       ├── models/               # Data models
-│       └── providers/            # State (Riverpod)
-│
-├── 📂 hydroflow-simulator/        # Python IoT Sensor Simulator
-│   ├── simulator.py              # Main simulation engine
-│   ├── scenarios/                # Preset test scenarios
-│   └── README.md                 # How to run the simulator
-│
-├── 📂 docs/                      # Project documentation
-│   ├── SPRINTS.md                # Full 4-week sprint plan
-│   ├── API.md                    # API endpoint reference
-│   ├── DATABASE_SCHEMA.md        # DB schema documentation
-│   └── SETUP.md                  # Full local setup guide
-│
-├── 📂 .github/
-│   ├── ISSUE_TEMPLATE/           # Bug + feature templates
-│   └── workflows/                # CI/CD GitHub Actions
-│
-├── .env.example                  # Template for environment variables
-├── docker-compose.yml            # Local dev environment
-├── CONTRIBUTING.md               # How to work on this project
-└── README.md                     # This file
-```
-
----
-
-## 🛠️ Tech Stack
-
-### Backend
-- **Runtime:** Node.js v20+
-- **Framework:** Express.js
-- **Primary DB:** PostgreSQL (users, orders, payments)
-- **Sensor DB:** MongoDB (time-series sensor data)
-- **Auth:** JWT + bcrypt
-- **Validation:** Zod
-
-### Frontend (Web Dashboard)
-- **Framework:** React.js 18
-- **State:** Zustand
-- **Styling:** Tailwind CSS
-- **Maps:** Google Maps API
-- **Charts:** Recharts
-
-### Mobile App
-- **Framework:** Flutter 3 (Dart)
-- **State:** Riverpod
-- **HTTP:** Dio
-
-### IoT Simulation
-- **Language:** Python 3.10+
-- **Libraries:** requests, faker, schedule
-
-### Integrations
-- **Payments:** Safaricom M-Pesa Daraja API
-- **SMS:** Africa's Talking API
-- **Maps:** Google Maps Platform
-- **Cloud:** Google Cloud Platform (GCP)
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js v20+
-- Python 3.10+
-- Flutter 3.x
-- PostgreSQL 15+
-- MongoDB 7+
-- Git
-
-### 1. Clone the repository
-```bash
-git clone https://github.com/YOUR_USERNAME/HydroFlow.git
-cd HydroFlow
-```
-
-### 2. Set up environment variables
-```bash
-cp .env.example .env
-# Edit .env with your actual keys
-```
-
-### 3. Start the backend
-```bash
-cd hydroflow-backend
-npm install
-npm run dev
-```
-
-### 4. Start the IoT Simulator (replaces physical sensors)
-```bash
-cd hydroflow-simulator
-pip install -r requirements.txt
-python simulator.py
-```
-
-### 5. Start the web dashboard
-```bash
-cd hydroflow-frontend
-npm install
-npm run dev
-```
-
-### 6. Run the Flutter mobile app
-```bash
-cd hydroflow-mobile
-flutter pub get
-flutter run
-```
-
-> 📘 See [docs/SETUP.md](docs/SETUP.md) for the full detailed setup guide.
-
----
-
-## 🔑 Key Features
-
-### 🔮 Predictive Thirst Engine
-Analyzes rolling 7-day water consumption to calculate the exact date the tank will run empty.
-Sends push notifications **3 days before** to prompt a refill order.
-
-### 🧪 Real-Time Quality Verification (TDS)
-TDS sensor readings are taken the moment a delivery truck begins pumping. If salinity exceeds
-**1000 PPM**, the app triggers a red alert and **M-Pesa escrow is NOT released** to the driver.
-
-### 🔍 Night Watch Leak Detection
-Between **2:00 AM – 4:00 AM**, the system checks for steady water level drops.
-If >2% drop occurs with no user activity, a leak alert is fired via push notification + SMS.
-
-### 💳 M-Pesa Escrow Payments
-Customer pays into a system-held escrow. Funds are only released to the driver after:
-1. Delivery is GPS-confirmed at the property
-2. TDS sensor confirms water quality is within safe limits
-
----
-
-## 📊 API Overview
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/login` | Login & get JWT |
-| GET | `/api/tank/:id/status` | Get live tank status |
-| POST | `/api/tank/:id/sensor-data` | IoT simulator data ingestion |
-| GET | `/api/tank/:id/prediction` | Get Predictive Thirst forecast |
-| POST | `/api/orders` | Place a water order |
-| PUT | `/api/orders/:id/verify` | Verify delivery & release payment |
-| GET | `/api/drivers/nearby` | Find nearest available drivers |
-
-> 📘 Full reference: [docs/API.md](docs/API.md)
-
----
-
-## 🧪 Running Tests
-
-```bash
-# Backend tests
-cd hydroflow-backend
-npm test
-
-# Watch mode
-npm run test:watch
-```
-
----
-
-## 📅 Project Timeline
-
-| Sprint | Duration | Focus |
-|--------|----------|-------|
-| Sprint 1 | Week 1 (Days 1–7) | Backend foundation + Database + Auth |
-| Sprint 2 | Week 2 (Days 8–14) | IoT Simulator + Core APIs + Predictive Engine |
-| Sprint 3 | Week 3 (Days 15–21) | React Dashboard + Flutter App core screens |
-| Sprint 4 | Week 4 (Days 22–30) | M-Pesa integration + Testing + Deployment |
-
-> 📘 Detailed day-by-day plan: [docs/SPRINTS.md](docs/SPRINTS.md)
-
----
-
-## 🤝 Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow and coding standards.
-
----
-
-## 📄 License
-
-© 2026 oumadavid. All rights reserved.
+- **[SETUP.md](SETUP.md)** — get everything running on your own machine, step by step
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — how the system actually works: order lifecycle, proof of
+  delivery, driver assignment, data model
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** — how (and where) this is hosted today
+- **[HANDOVER_NOTES.md](HANDOVER_NOTES.md)** — known rough edges, where the credentials live, and
+  what to do first as the new owner

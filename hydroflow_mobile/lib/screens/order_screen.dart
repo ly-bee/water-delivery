@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import 'mpesa_payment_screen.dart';
 import 'order_confirmation_screen.dart';
 
 class OrderScreen extends StatefulWidget {
@@ -244,15 +245,31 @@ class _OrderScreenState extends State<OrderScreen> {
     setState(() => _placing = false);
     if (!mounted) return;
     if (res['success'] == true || res['order'] != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => OrderConfirmationScreen(
-            orderId: res['order']?['id']?.toString() ?? 'AQ-2061',
-            eta: '10:48 AM (≈ 32 min)',
+      final orderId = res['order']?['id']?.toString() ?? 'AQ-2061';
+      const eta = '10:48 AM (≈ 32 min)';
+      if (_payment == 'mpesa') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MpesaPaymentScreen(
+              orderId: orderId,
+              phone: _mpesaPhone,
+              amount: _total,
+              eta: eta,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OrderConfirmationScreen(
+              orderId: orderId,
+              eta: eta,
+            ),
+          ),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

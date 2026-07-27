@@ -8,6 +8,7 @@ import { orderAPI, userAPI, driverAPI } from '../../services/api';
 /* ─── Status display ───────────────────────────────────────────────────────── */
 const STATUS_META = {
   PENDING:    { label: 'Pending',    cls: 'badge-pending'   },
+  PAID:       { label: 'Paid',       cls: 'badge-completed' },
   ASSIGNED:   { label: 'Assigned',   cls: 'badge-assigned'  },
   IN_TRANSIT: { label: 'In Transit', cls: 'badge-transit'   },
   DELIVERED:  { label: 'Delivered',  cls: 'badge-delivered' },

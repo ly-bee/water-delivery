@@ -217,12 +217,18 @@ class ApiService {
   }
 
   // ── M-PESA ───────────────────────────────────────────
-  static Future<Map<String, dynamic>> initiatePayment({required String orderId}) async {
+  static Future<Map<String, dynamic>> initiatePayment({
+    required String orderId,
+    String? phone,
+  }) async {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/mpesa/pay'),
         headers: _headers,
-        body: jsonEncode({'order_id': orderId}),
+        body: jsonEncode({
+          'order_id': orderId,
+          if (phone != null) 'phone': phone,
+        }),
       );
       final data = jsonDecode(res.body);
       if (res.statusCode == 200) return {'success': true, 'data': data};

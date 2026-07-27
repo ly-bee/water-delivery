@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const STATUS_META = {
   PENDING:    { label: 'Pending',    cls: 'badge-pending'   },
+  PAID:       { label: 'Paid',       cls: 'badge-completed' },
   ASSIGNED:   { label: 'Assigned',   cls: 'badge-assigned'  },
   IN_TRANSIT: { label: 'In Transit', cls: 'badge-transit'   },
   DELIVERED:  { label: 'Delivered',  cls: 'badge-delivered' },
@@ -14,7 +15,7 @@ const STATUS_META = {
   CANCELLED:  { label: 'Cancelled',  cls: 'badge-cancelled' },
 };
 
-const FILTERS_ADMIN  = ['ALL','PENDING','ASSIGNED','IN_TRANSIT','DELIVERED','COMPLETED','CANCELLED'];
+const FILTERS_ADMIN  = ['ALL','PENDING','PAID','ASSIGNED','IN_TRANSIT','DELIVERED','COMPLETED','CANCELLED'];
 const FILTERS_DRIVER = ['ALL','ASSIGNED','IN_TRANSIT','DELIVERED'];
 
 /* ─── Admin order card ─────────────────────────────────────────────────────── */
@@ -129,7 +130,7 @@ const AdminOrderCard = ({ order, drivers, onRefresh }) => {
       </div>
 
       <div className="order-card-footer">
-        {order.status === 'PENDING' && (
+        {['PENDING', 'PAID'].includes(order.status) && (
           <button className="btn btn-primary btn-sm" disabled={loading} onClick={() => setShowAssign(v => !v)}>
             <UserCheck size={12} /> Assign Driver
           </button>
