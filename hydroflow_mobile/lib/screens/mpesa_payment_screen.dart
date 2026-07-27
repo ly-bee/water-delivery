@@ -1,10 +1,9 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'order_confirmation_screen.dart';
 
-enum _PayState { initiating, waiting, timedOut, failed }
+enum _PayState { initiating, awaitingConfirmation, failed }
 
 class MpesaPaymentScreen extends StatefulWidget {
   final String orderId;
@@ -23,13 +22,10 @@ class MpesaPaymentScreen extends StatefulWidget {
 }
 
 class _MpesaPaymentScreenState extends State<MpesaPaymentScreen> {
-  static const _timeoutSeconds = 90;
-  static const _pollInterval = Duration(seconds: 3);
-
   _PayState _state = _PayState.initiating;
   String? _errorMessage;
-  Timer? _pollTimer;
-  int _elapsedSeconds = 0;
+  bool _confirming = false;
+  final TextEditingController _codeCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -39,16 +35,14 @@ class _MpesaPaymentScreenState extends State<MpesaPaymentScreen> {
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    _codeCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _start() async {
-    _pollTimer?.cancel();
     setState(() {
       _state = _PayState.initiating;
       _errorMessage = null;
-      _elapsedSeconds = 0;
     });
 
     final res = await ApiService.initiatePayment(
@@ -65,20 +59,23 @@ class _MpesaPaymentScreenState extends State<MpesaPaymentScreen> {
       return;
     }
 
-    setState(() => _state = _PayState.waiting);
-    _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
+    setState(() => _state = _PayState.awaitingConfirmation);
   }
 
-  Future<void> _poll() async {
+  // Resident taps this after they've entered their PIN on their phone — we don't wait on
+  // Safaricom's callback (it needs a public URL that isn't reliably available), the resident
+  // self-reports instead.
+  Future<void> _confirmPaid() async {
+    if (_confirming) return;
+    setState(() => _confirming = true);
+    final res = await ApiService.confirmPaymentManually(
+      orderId: widget.orderId,
+      mpesaCode: _codeCtrl.text,
+    );
     if (!mounted) return;
-    final res = await ApiService.checkPaymentStatus(orderId: widget.orderId);
-    if (!mounted) return;
+    setState(() => _confirming = false);
 
-    // mpesa_receipt (not status) is the reliable "payment succeeded" signal — if a driver was
-    // already auto-assigned before payment, the order stays ASSIGNED rather than becoming PAID.
-    final receipt = res['data']?['mpesa_receipt'];
-    if (receipt != null) {
-      _pollTimer?.cancel();
+    if (res['success'] == true) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -88,20 +85,15 @@ class _MpesaPaymentScreenState extends State<MpesaPaymentScreen> {
           ),
         ),
       );
-      return;
-    }
-
-    final next = _elapsedSeconds + _pollInterval.inSeconds;
-    if (next >= _timeoutSeconds) {
-      _pollTimer?.cancel();
-      setState(() => _state = _PayState.timedOut);
     } else {
-      setState(() => _elapsedSeconds = next);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(res['message'] ?? 'Could not confirm payment'),
+        behavior: SnackBarBehavior.floating,
+      ));
     }
   }
 
   void _cancel() {
-    _pollTimer?.cancel();
     Navigator.pop(context);
   }
 
@@ -120,14 +112,16 @@ class _MpesaPaymentScreenState extends State<MpesaPaymentScreen> {
           child: Padding(
             padding: const EdgeInsets.all(28),
             child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_state == _PayState.initiating) ..._buildInitiating(p),
-                  if (_state == _PayState.waiting) ..._buildWaiting(p),
-                  if (_state == _PayState.timedOut) ..._buildTimedOut(p),
-                  if (_state == _PayState.failed) ..._buildFailed(p),
-                ],
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_state == _PayState.initiating) ..._buildInitiating(p),
+                    if (_state == _PayState.awaitingConfirmation)
+                      ..._buildAwaitingConfirmation(p),
+                    if (_state == _PayState.failed) ..._buildFailed(p),
+                  ],
+                ),
               ),
             ),
           ),
@@ -149,11 +143,11 @@ class _MpesaPaymentScreenState extends State<MpesaPaymentScreen> {
         ),
       ];
 
-  List<Widget> _buildWaiting(AqPalette p) => [
+  List<Widget> _buildAwaitingConfirmation(AqPalette p) => [
         Container(
           width: 84, height: 84,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE9F8EE),
+          decoration: const BoxDecoration(
+            color: Color(0xFFE9F8EE),
             shape: BoxShape.circle,
           ),
           child: const Center(
@@ -172,75 +166,71 @@ class _MpesaPaymentScreenState extends State<MpesaPaymentScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Enter your M-Pesa PIN on ${widget.phone} to pay KSh ${widget.amount} '
-          'and complete your order.',
+          'Enter your M-Pesa PIN on ${widget.phone} to pay KSh ${widget.amount}, '
+          'then come back and tap "I\'ve paid" below.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13.5, color: p.textSecondary, height: 1.5),
         ),
         const SizedBox(height: 24),
-        SizedBox(
-          width: 22, height: 22,
-          child: CircularProgressIndicator(color: p.primary, strokeWidth: 2),
-        ),
-        const SizedBox(height: 24),
-        TextButton(
-          onPressed: _cancel,
-          child: Text('Cancel',
-              style: TextStyle(fontSize: 14, color: p.textSecondary)),
-        ),
-      ];
-
-  List<Widget> _buildTimedOut(AqPalette p) => [
         Container(
-          width: 84, height: 84,
-          decoration: const BoxDecoration(
-            color: Color(0xFFFEF3E7),
-            shape: BoxShape.circle,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          decoration: BoxDecoration(
+            color: p.bgElevated,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: p.border, width: 1.5),
           ),
-          child: const Center(
-            child: Icon(Icons.schedule_rounded,
-                color: Color(0xFFC9742B), size: 40),
+          child: TextField(
+            controller: _codeCtrl,
+            textCapitalization: TextCapitalization.characters,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: p.textPrimary,
+            ),
+            decoration: InputDecoration(
+              hintText: 'M-Pesa code (optional) e.g. TGH4XXXXXX',
+              hintStyle: TextStyle(color: p.textMuted, fontSize: 13.5),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            ),
           ),
         ),
-        const SizedBox(height: 22),
-        Text(
-          'Still waiting for confirmation',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: p.textPrimary,
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              "From the M-Pesa SMS you received — helps us match your payment.",
+              style: TextStyle(fontSize: 11.5, color: p.textMuted),
+            ),
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          "This is taking longer than usual. You can keep waiting, or check "
-          "back later — your order is saved and won't be lost.",
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13.5, color: p.textSecondary, height: 1.5),
-        ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () {
-              setState(() => _state = _PayState.waiting);
-              _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
-            },
+            onPressed: _confirming ? null : _confirmPaid,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0077B6),
+              backgroundColor: const Color(0xFF1E9E47),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
             ),
-            child: const Text('Keep waiting',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            child: _confirming
+                ? const SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2.5))
+                : const Text("I've paid",
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
           ),
         ),
         const SizedBox(height: 10),
         TextButton(
-          onPressed: _cancel,
-          child: Text('Cancel and go back',
+          onPressed: _confirming ? null : _cancel,
+          child: Text('Cancel',
               style: TextStyle(fontSize: 14, color: p.textSecondary)),
         ),
       ];

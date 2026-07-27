@@ -173,15 +173,32 @@ environment only — `MPESA_BASE_URL` is hardcoded to `https://sandbox.safaricom
 live would require changing that hardcoded URL (and getting production credentials from Safaricom),
 not just flipping an env var.
 
-Flow: resident places an order → mobile app calls `POST /api/mpesa/pay` → backend asks Safaricom to
-send an STK push → mobile app polls `GET /api/mpesa/status/:orderId` every few seconds → when
-Safaricom calls the backend back on `MPESA_CALLBACK_URL` with a result, the order flips to `PAID` (or
-stays as-is on failure) → the poll picks up the new status and the app moves on.
+> ⚠️ **Confirmed during testing of this project: sandbox does not reliably mean "no real money."**
+> Common developer documentation (cited when this doc was first written) says Safaricom's sandbox
+> never delivers a real STK prompt or moves real funds for anything other than Safaricom's own shared
+> test number (`254708374149`). **That turned out to be wrong in practice** — a real prompt arrived on
+> a real phone, a real PIN was entered, and the resident's real M-Pesa balance was actually debited,
+> using this project's sandbox shortcode (`174379`) and sandbox base URL. The root cause was never
+> fully diagnosed. **Treat any STK push test against this integration, from any phone, as capable of
+> moving real money until proven otherwise** — do not assume sandbox is safe to test freely.
 
-In Safaricom's sandbox, no real phone receives a real prompt for arbitrary numbers — only their
-shared test number (`254708374149`) is meaningful there, and even that mostly proves the request was
-accepted rather than simulating a real customer PIN entry end-to-end. See
-[SETUP.md](SETUP.md#common-setup-issues) for the practical implication.
+Flow: resident places an order → mobile app calls `POST /api/mpesa/pay` → backend asks Safaricom to
+send an STK push to the resident's phone. From there, **the app does not wait for Safaricom's
+callback** — it deliberately doesn't poll or block on `MPESA_CALLBACK_URL` firing, because that
+requires a public HTTPS URL that isn't reliably available in this project's setup (see
+[SETUP.md](SETUP.md#environment-variables)). Instead, the resident manually taps **"I've paid"** in
+the app after entering their PIN, optionally typing in the M-Pesa confirmation code they got by SMS.
+That hits `POST /api/mpesa/confirm`, which records the payment (`mpesa_receipt`, `paid_at`) and moves
+the order `PENDING → PAID` (or leaves it as `ASSIGNED`/`IN_TRANSIT` unchanged if a driver was already
+assigned — see [Order lifecycle](#order-lifecycle)).
+
+**This means payment confirmation is self-reported, not independently verified.** If the resident
+doesn't type in an M-Pesa code, `mpesa_receipt` is set to the literal placeholder
+`'RESIDENT_CONFIRMED'` rather than a real Safaricom receipt number — so admins/ops can tell at a
+glance which orders have a real, checkable receipt code and which were just self-attested. Nothing
+currently cross-checks a typed-in code against Safaricom's records either. The `POST /api/mpesa/pay`
+→ `MPESA_CALLBACK_URL` → `mpesaCallback` path in the code still exists and would still work if
+Safaricom's callback ever does reach the server, but nothing in the app waits on it anymore.
 
 ## Data model
 
@@ -280,7 +297,7 @@ them):
 |---|---|---|
 | **Neon (PostgreSQL)** | The only database. Everything lives here. | `hydroflow-backend/src/config/db.js` |
 | **Cloudinary** | Stores proof-of-delivery photos and customer signatures | `hydroflow-backend/src/config/cloudinary.js`, called from `driverSelfController.js` |
-| **Safaricom M-Pesa (Daraja)** | STK Push payments | `hydroflow-backend/src/services/mpesaService.js` — sandbox only, see above |
+| **Safaricom M-Pesa (Daraja)** | Sends the STK Push prompt only — payment confirmation is now self-reported by the resident, not verified via this integration | `hydroflow-backend/src/services/mpesaService.js` — sandbox only, ⚠️ see above |
 | **Africa's Talking** | SMS for phone-login OTP codes | `hydroflow-backend/src/services/smsService.js` — degrades gracefully if not configured (still works for local dev, code just isn't texted) |
 | **Gmail (SMTP via nodemailer)** | Account verification emails for the web dashboard's password-based signup | `hydroflow-backend/src/services/emailService.js` |
 | **OpenStreetMap (via Leaflet / flutter_map)** | All maps, both admin dashboard and mobile — free, no API key needed | `react-leaflet` (web), `flutter_map` (mobile) |

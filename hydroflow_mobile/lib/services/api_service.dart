@@ -238,6 +238,29 @@ class ApiService {
     }
   }
 
+  // Resident taps "I've paid" after completing the STK push on their phone — used instead of
+  // waiting on Safaricom's callback.
+  static Future<Map<String, dynamic>> confirmPaymentManually({
+    required String orderId,
+    String? mpesaCode,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/mpesa/confirm'),
+        headers: _headers,
+        body: jsonEncode({
+          'order_id': orderId,
+          if (mpesaCode != null && mpesaCode.trim().isNotEmpty) 'mpesa_code': mpesaCode.trim(),
+        }),
+      );
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200) return {'success': true, 'order': data['order']};
+      return {'success': false, 'message': data['message'] ?? 'Could not confirm payment'};
+    } catch (e) {
+      return {'success': false, 'message': 'Cannot connect to server.'};
+    }
+  }
+
   static Future<Map<String, dynamic>> checkPaymentStatus({required String orderId}) async {
     try {
       final res = await http.get(Uri.parse('$baseUrl/mpesa/status/$orderId'), headers: _headers);

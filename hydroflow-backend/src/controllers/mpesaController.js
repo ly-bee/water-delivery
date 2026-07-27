@@ -133,6 +133,77 @@ const mpesaCallback = async (req, res) => {
   }
 };
 
+// POST /api/mpesa/confirm
+// Resident manually confirms they've completed the M-Pesa payment on their phone.
+// Used instead of waiting on Safaricom's callback, which requires a public callback URL
+// that isn't always reliably reachable from a local/dev setup — this makes checkout not
+// depend on that. Self-reported: mpesa_receipt holds the code the resident typed in from
+// their M-Pesa SMS if they gave one, or a clearly-flagged placeholder if they didn't.
+const confirmPaymentManually = async (req, res) => {
+  try {
+    const { order_id, mpesa_code } = req.body;
+    const userId = req.user.id;
+
+    if (!order_id) {
+      return res.status(400).json({
+        error: 'MISSING_FIELDS',
+        message: 'order_id is required',
+      });
+    }
+
+    const orderResult = await pool.query(
+      `SELECT * FROM orders WHERE id = $1 AND user_id = $2`,
+      [order_id, userId]
+    );
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'ORDER_NOT_FOUND',
+        message: 'Order not found',
+      });
+    }
+
+    const order = orderResult.rows[0];
+
+    if (order.mpesa_receipt) {
+      return res.status(400).json({
+        error: 'ALREADY_PAID',
+        message: 'This order has already been marked as paid.',
+      });
+    }
+    if (!['PENDING', 'ASSIGNED'].includes(order.status)) {
+      return res.status(400).json({
+        error: 'INVALID_STATUS',
+        message: `Order is ${order.status} and can no longer be paid.`,
+      });
+    }
+
+    const receiptValue = mpesa_code && mpesa_code.trim() ? mpesa_code.trim() : 'RESIDENT_CONFIRMED';
+
+    // Same safe transition as the callback — only move PENDING to PAID, never clobber an
+    // already-assigned order's delivery-progress status.
+    const result = await pool.query(
+      `UPDATE orders
+       SET status = CASE WHEN status = 'PENDING' THEN 'PAID' ELSE status END,
+           mpesa_receipt = $1,
+           paid_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [receiptValue, order_id]
+    );
+
+    console.log(`✅ Payment self-confirmed by resident for order ${order_id} — code: ${receiptValue}`);
+
+    return res.status(200).json({ message: 'Payment confirmed. Thank you!', order: result.rows[0] });
+  } catch (error) {
+    console.error('Confirm payment error:', error.message);
+    return res.status(500).json({
+      error: 'SERVER_ERROR',
+      message: 'Something went wrong.',
+    });
+  }
+};
+
 // GET /api/mpesa/status/:orderId
 // Check payment status of an order
 const checkPaymentStatus = async (req, res) => {
@@ -172,4 +243,4 @@ const checkPaymentStatus = async (req, res) => {
   }
 };
 
-module.exports = { initiatePayment, mpesaCallback, checkPaymentStatus };
+module.exports = { initiatePayment, mpesaCallback, checkPaymentStatus, confirmPaymentManually };

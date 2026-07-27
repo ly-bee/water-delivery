@@ -3,6 +3,7 @@ const {
   initiatePayment,
   mpesaCallback,
   checkPaymentStatus,
+  confirmPaymentManually,
 } = require('../controllers/mpesaController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -13,6 +14,9 @@ router.post('/pay', protect, initiatePayment);
 
 // POST /api/mpesa/callback — Safaricom calls this (no auth)
 router.post('/callback', mpesaCallback);
+
+// POST /api/mpesa/confirm — resident self-reports "I've paid" (JWT protected)
+router.post('/confirm', protect, confirmPaymentManually);
 
 // GET /api/mpesa/status/:orderId — check payment status (JWT protected)
 router.get('/status/:orderId', protect, checkPaymentStatus);
