@@ -25,7 +25,7 @@ const CENTER = [-1.0996, 37.0144];
 const SOCKET_URL = (process.env.REACT_APP_API_URL || 'http://localhost:3000/api').replace('/api', '');
 
 const STATUS_CFG = {
-  available:   { label: 'Available',   color: '#5E8F70', bg: 'rgba(94,143,112,0.1)',  border: 'rgba(94,143,112,0.22)'  },
+  available:   { label: 'Available',   color: '#5e8f67', bg: 'rgba(94,143,112,0.1)',  border: 'rgba(94,143,112,0.22)'  },
   on_delivery: { label: 'On Delivery', color: '#D4923B', bg: 'rgba(212,146,59,0.1)',  border: 'rgba(212,146,59,0.22)'  },
   offline:     { label: 'Offline',     color: '#8A888B', bg: 'rgba(138,136,139,0.1)', border: 'rgba(138,136,139,0.22)' },
   suspended:   { label: 'Suspended',   color: '#A85C49', bg: 'rgba(168,92,73,0.1)',   border: 'rgba(168,92,73,0.22)'   },

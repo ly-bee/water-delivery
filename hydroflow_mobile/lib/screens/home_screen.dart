@@ -296,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               const Row(
                                 children: [
                                   Text(
-                                    'Good morning ',
+                                    'Hi ',
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: Color(0xCCCAF0F8),
